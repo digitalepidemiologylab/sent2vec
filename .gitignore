@@ -27,3 +27,8 @@
 *.exe
 *.out
 *.app
+
+# other
+.idea/
+.ipynb_checkpoints/
+cmake-build-debug/

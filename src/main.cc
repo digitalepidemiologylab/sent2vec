@@ -10,7 +10,15 @@
 #include <iostream>
 
 #include "fasttext.h"
-#include "args.h"
+#include <cpp_redis/core/client.hpp>
+#include <cpp_redis/core/subscriber.hpp>
+#include <cpp_redis/misc/error.hpp>
+#include <array>
+#include <sstream>
+
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+
+#include "../lib/json.hpp"
 
 using namespace fasttext;
 
@@ -72,6 +80,16 @@ void printPrintSentenceVectorsUsage() {
     << "  <model>      model filename\n"
     << std::endl;
 }
+
+void printRedisModeVectorsUsage() {
+  std::cerr
+          << "usage: fasttext print-sentence-vectors sent2vec redis-mode <model> <input_list> <output_list>\n\n"
+          << "  <model>        model filename\n"
+          << "  <input_list>   key in redis with list of inputs\n"
+          << "  <output_list>   key in redis with list of outputs\n"
+          << std::endl;
+}
+
 
 void printPrintNgramsUsage() {
   std::cerr
@@ -293,6 +311,88 @@ void train(int argc, char** argv) {
   fasttext.train(a);
 }
 
+void redisMode(int argc, char** argv) {
+  if (argc != 5) {
+    printRedisModeVectorsUsage();
+    exit(EXIT_FAILURE);
+  }
+
+  cpp_redis::client client;
+  client.connect("127.0.0.1", 6379);
+  cpp_redis::active_logger = std::unique_ptr<cpp_redis::logger>(new cpp_redis::logger);
+
+  if (client.is_connected()) {
+    cpp_redis::active_logger->info("Successfully connected to Redis.", __FILENAME__, __LINE__);
+  }
+
+  // Queue Names
+  const std::vector<std::string> redis_listen_queue{std::string(argv[3])};
+  const std::string redis_result_queue{std::string(argv[4])};
+
+  FastText fasttext;
+  cpp_redis::active_logger->info("Loading model...", __FILENAME__, __LINE__);
+  fasttext.loadModel(std::string(argv[2]));
+  cpp_redis::active_logger->info("... done", __FILENAME__, __LINE__);
+
+  while(client.is_connected()) {
+    // Get new tweet
+    auto response = client.blpop(redis_listen_queue,3600);
+    client.sync_commit();
+    response.wait();
+    auto reply = response.get();
+    auto reply_arr = reply.as_array();
+    std::string tweet_str = reply_arr[1].as_string();
+
+    // parse into JSON
+    nlohmann::json tweet;
+    try {
+      tweet = nlohmann::json::parse(tweet_str);
+    } catch(nlohmann::detail::type_error) {
+      cpp_redis::active_logger->error("Could not parse string to JSON", __FILENAME__, __LINE__);
+      continue;
+    }
+    long tweet_id = tweet["id"];
+    std::string tweet_id_str = std::to_string(tweet_id);
+    std::string msg = "Received tweet with id " + tweet_id_str;
+    cpp_redis::active_logger->info(msg, __FILENAME__, __LINE__);
+
+    // Compute sentence vector
+    std::cout << tweet << std::endl;
+    if (tweet["text_tokenized"] == NULL || tweet["text_tokenized"] == "") {
+      cpp_redis::active_logger->error("text_tokenized field is empty", __FILENAME__, __LINE__);
+      continue;
+    }
+    std::string text = tweet["text_tokenized"];
+    Vector result = fasttext.singleSentenceVector(text);
+    std::vector<float> embedding_vector = {};
+
+    // Read out result into vector
+    for (int64_t j = 0; j < result.m_; j++) {
+      if (std::isnan(result.data_[j])) {
+        embedding_vector = {};
+        break;
+      } else {
+        embedding_vector.push_back(static_cast<float>(result.data_[j]));
+      }
+    }
+    tweet["sentence_vector"] = embedding_vector;
+    std::cout << tweet << std::endl;
+
+    // Push to result queue
+    std::vector<std::string> tweet_dump = {};
+    try {
+      tweet_dump = {tweet.dump()};
+    } catch(nlohmann::detail::type_error) {
+      cpp_redis::active_logger->error("Could not convert JSON to string", __FILENAME__, __LINE__);
+      continue;
+    }
+
+    // Push to result queue
+    client.rpush(redis_result_queue, tweet_dump);
+  }
+}
+
+
 int main(int argc, char** argv) {
   if (argc < 2) {
     printUsage();
@@ -322,6 +422,8 @@ int main(int argc, char** argv) {
     analogiesSent(argc, argv);
   } else if (command == "predict" || command == "predict-prob" ) {
     predict(argc, argv);
+  } else if (command == "redis-mode") {
+    redisMode(argc, argv);
   } else {
     printUsage();
     exit(EXIT_FAILURE);

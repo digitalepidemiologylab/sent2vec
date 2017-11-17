@@ -92,6 +92,7 @@ class FastText {
 
     void loadVectors(std::string);
     int getDimension() const;
+    Vector singleSentenceVector(std::string &sentence);
 };
 
 }

@@ -399,6 +399,24 @@ void FastText::sentenceVectors() {
   }
 }
 
+Vector FastText::singleSentenceVector(std::string& sentence) {
+  Vector vec(args_->dim);
+  Vector svec(args_->dim);
+  std::string word;
+  std::istringstream iss(sentence);
+  svec.zero();
+  int32_t count = 0;
+
+  while(iss >> word) {
+    getVector(vec, word);
+    vec.mul(1.0 / vec.norm());
+    svec.addVector(vec);
+    count++;
+  }
+  svec.mul(1.0 / count);
+  return svec;
+}
+
 void FastText::ngramVectors(std::string word) {
   std::vector<int32_t> ngrams;
   std::vector<std::string> substrings;
