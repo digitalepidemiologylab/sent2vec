@@ -335,34 +335,34 @@ void redisMode(int argc, char** argv) {
   cpp_redis::active_logger->info("... done", __FILENAME__, __LINE__);
 
   while(client.is_connected()) {
-    // Get new tweet
+    // Get new text_obj
     auto response = client.blpop(redis_listen_queue,3600);
     client.sync_commit();
     response.wait();
     auto reply = response.get();
     auto reply_arr = reply.as_array();
-    std::string tweet_str = reply_arr[1].as_string();
+    std::string resp_str = reply_arr[1].as_string();
 
     // parse into JSON
-    nlohmann::json tweet;
+    nlohmann::json text_obj;
     try {
-      tweet = nlohmann::json::parse(tweet_str);
+      text_obj = nlohmann::json::parse(resp_str);
     } catch(nlohmann::detail::type_error) {
       cpp_redis::active_logger->error("Could not parse string to JSON", __FILENAME__, __LINE__);
       continue;
     }
-    long tweet_id = tweet["id"];
-    std::string tweet_id_str = std::to_string(tweet_id);
-    std::string msg = "Received tweet with id " + tweet_id_str;
+    long obj_id = text_obj["id"];
+    std::string obj_id_str = std::to_string(obj_id);
+    std::string msg = "Received text_obj with id " + obj_id_str;
     cpp_redis::active_logger->info(msg, __FILENAME__, __LINE__);
 
     // Compute sentence vector
-    std::cout << tweet << std::endl;
-    if (tweet["text_tokenized"] == NULL || tweet["text_tokenized"] == "") {
+    std::cout << text_obj << std::endl;
+    if (text_obj["text_tokenized"] == NULL || text_obj["text_tokenized"] == "") {
       cpp_redis::active_logger->error("text_tokenized field is empty", __FILENAME__, __LINE__);
       continue;
     }
-    std::string text = tweet["text_tokenized"];
+    std::string text = text_obj["text_tokenized"];
     Vector result = fasttext.singleSentenceVector(text);
     std::vector<float> embedding_vector = {};
 
@@ -375,20 +375,20 @@ void redisMode(int argc, char** argv) {
         embedding_vector.push_back(static_cast<float>(result.data_[j]));
       }
     }
-    tweet["sentence_vector"] = embedding_vector;
-    std::cout << tweet << std::endl;
+    text_obj["sentence_vector"] = embedding_vector;
+    std::cout << text_obj << std::endl;
 
     // Push to result queue
-    std::vector<std::string> tweet_dump = {};
+    std::vector<std::string> text_obj_dump = {};
     try {
-      tweet_dump = {tweet.dump()};
+      text_obj_dump = {text_obj.dump()};
     } catch(nlohmann::detail::type_error) {
       cpp_redis::active_logger->error("Could not convert JSON to string", __FILENAME__, __LINE__);
       continue;
     }
 
     // Push to result queue
-    client.rpush(redis_result_queue, tweet_dump);
+    client.rpush(redis_result_queue, text_obj_dump);
   }
 }
 
