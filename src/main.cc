@@ -83,10 +83,9 @@ void printPrintSentenceVectorsUsage() {
 
 void printRedisModeVectorsUsage() {
   std::cerr
-          << "usage: fasttext print-sentence-vectors sent2vec redis-mode <model> <input_list> <output_list>\n\n"
+          << "usage: fasttext print-sentence-vectors sent2vec redis-mode <model> <input_list>\n\n"
           << "  <model>        model filename\n"
           << "  <input_list>   key in redis with list of inputs\n"
-          << "  <output_list>   key in redis with list of outputs\n"
           << std::endl;
 }
 
@@ -312,14 +311,14 @@ void train(int argc, char** argv) {
 }
 
 void redisMode(int argc, char** argv) {
-  if (argc != 5) {
+  if (argc != 4) {
     printRedisModeVectorsUsage();
     exit(EXIT_FAILURE);
   }
 
   cpp_redis::client client;
   client.connect("127.0.0.1", 6379);
-  cpp_redis::active_logger = std::unique_ptr<cpp_redis::logger>(new cpp_redis::logger);
+  cpp_redis::active_logger = std::unique_ptr<cpp_redis::logger>(new cpp_redis::logger(cpp_redis::logger::log_level::debug));
 
   if (client.is_connected()) {
     cpp_redis::active_logger->info("Successfully connected to Redis.", __FILENAME__, __LINE__);
@@ -327,7 +326,6 @@ void redisMode(int argc, char** argv) {
 
   // Queue Names
   const std::vector<std::string> redis_listen_queue{std::string(argv[3])};
-  const std::string redis_result_queue{std::string(argv[4])};
 
   FastText fasttext;
   cpp_redis::active_logger->info("Loading model...", __FILENAME__, __LINE__);
@@ -351,10 +349,6 @@ void redisMode(int argc, char** argv) {
       cpp_redis::active_logger->error("Could not parse string to JSON", __FILENAME__, __LINE__);
       continue;
     }
-    long obj_id = text_obj["id"];
-    std::string obj_id_str = std::to_string(obj_id);
-    std::string msg = "Received text_obj with id " + obj_id_str;
-    cpp_redis::active_logger->info(msg, __FILENAME__, __LINE__);
 
     // Compute sentence vector
     std::cout << text_obj << std::endl;
@@ -376,7 +370,6 @@ void redisMode(int argc, char** argv) {
       }
     }
     text_obj["sentence_vector"] = embedding_vector;
-    std::cout << text_obj << std::endl;
 
     // Push to result queue
     std::vector<std::string> text_obj_dump = {};
@@ -388,7 +381,15 @@ void redisMode(int argc, char** argv) {
     }
 
     // Push to result queue
-    client.rpush(redis_result_queue, text_obj_dump);
+    if (text_obj["result_queue"] == NULL || text_obj["result_queue"] == "") {
+      cpp_redis::active_logger->error("No result queue given", __FILENAME__, __LINE__);
+      continue;
+    }
+    client.rpush(text_obj["result_queue"], text_obj_dump);
+    if (text_obj.count("mode") > 0 && text_obj["mode"] == "single_request") {
+      cpp_redis::active_logger->debug("Setting expiration to key", __FILENAME__, __LINE__);
+      client.expire(text_obj["result_queue"], 10);
+    }
   }
 }
 

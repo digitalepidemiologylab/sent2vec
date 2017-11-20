@@ -400,21 +400,22 @@ void FastText::sentenceVectors() {
 }
 
 Vector FastText::singleSentenceVector(std::string& sentence) {
+  std::vector<int32_t> line, labels;
   Vector vec(args_->dim);
-  Vector svec(args_->dim);
-  std::string word;
   std::istringstream iss(sentence);
-  svec.zero();
-  int32_t count = 0;
-
-  while(iss >> word) {
-    getVector(vec, word);
-    vec.mul(1.0 / vec.norm());
-    svec.addVector(vec);
-    count++;
+//  while (std::cin.peek() != EOF) {
+  dict_->getLine(iss, line, labels, model_->rng);
+  vec.zero();
+  if (args_->model == model_name::sent2vec){
+    dict_->addNgrams(line, args_->wordNgrams);
   }
-  svec.mul(1.0 / count);
-  return svec;
+  for (auto it = line.cbegin(); it != line.cend(); ++it) {
+    vec.addRow(*input_, *it);
+  }
+  if (!line.empty()) {
+    vec.mul(1.0 / line.size());
+  }
+  return vec;
 }
 
 void FastText::ngramVectors(std::string word) {
