@@ -4,7 +4,8 @@ project(sent2vec)
 set(CMAKE_CXX_STANDARD 11)
 
 
-link_directories("/usr/local/include/cpp_redis")
+link_directories("/usr/local/include/cpp_redis/")
+link_directories("/usr/local/include/tacopie")
 
 
 set(SOURCE_FILES
@@ -33,5 +34,5 @@ set(SOURCE_FILES
 
 add_executable(sent2vec ${SOURCE_FILES})
 
-target_link_libraries(sent2vec cpp_redis)
+target_link_libraries(sent2vec cpp_redis tacopie)
 

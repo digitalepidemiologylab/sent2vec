@@ -10,9 +10,7 @@
 #include <iostream>
 
 #include "fasttext.h"
-#include <cpp_redis/core/client.hpp>
-#include <cpp_redis/core/subscriber.hpp>
-#include <cpp_redis/misc/error.hpp>
+#include <cpp_redis/cpp_redis>
 #include <array>
 #include <sstream>
 
