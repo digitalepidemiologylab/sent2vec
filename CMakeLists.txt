@@ -34,5 +34,5 @@ set(SOURCE_FILES
 
 add_executable(sent2vec ${SOURCE_FILES})
 
-target_link_libraries(sent2vec cpp_redis tacopie)
+target_link_libraries(sent2vec cpp_redis tacopie pthread)
 
