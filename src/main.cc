@@ -313,13 +313,28 @@ void redisMode(int argc, char** argv) {
     printRedisModeVectorsUsage();
     exit(EXIT_FAILURE);
   }
-
-  cpp_redis::client client;
-  client.connect("127.0.0.1", 6379);
+  // Logger instance
   cpp_redis::active_logger = std::unique_ptr<cpp_redis::logger>(new cpp_redis::logger(cpp_redis::logger::log_level::debug));
 
-  if (client.is_connected()) {
+  const char* redis_host = std::getenv("REDIS_HOST");
+  const char* redis_port = std::getenv("REDIS_PORT");
+  const char* redis_pw = std::getenv("REDIS_PASSWORD");
+  int redis_port_int = std::atoi(redis_port);
+  const std::string msg = "Trying to connect with Redis host " + std::string(redis_host) + ":" + std::string(redis_port);
+  cpp_redis::active_logger->info(msg, __FILENAME__, __LINE__);
+
+  cpp_redis::client client;
+  client.connect(redis_host, redis_port_int);
+  client.auth(redis_pw);
+
+  // Test connection
+  auto resp = client.ping();
+  client.sync_commit();
+  auto reply = resp.get();
+  if (reply.as_string() == "PONG") {
     cpp_redis::active_logger->info("Successfully connected to Redis.", __FILENAME__, __LINE__);
+  } else {
+    cpp_redis::active_logger->error("Could not connect to Redis.", __FILENAME__, __LINE__);
   }
 
   // Queue Names
@@ -331,6 +346,9 @@ void redisMode(int argc, char** argv) {
   cpp_redis::active_logger->info("... done", __FILENAME__, __LINE__);
 
   while(client.is_connected()) {
+    const std::string msg = "Fetching new work from queue" + redis_listen_queue[0];
+    cpp_redis::active_logger->debug(msg, __FILENAME__, __LINE__);
+
     // Get new text_obj
     auto response = client.blpop(redis_listen_queue,3600);
     client.sync_commit();
