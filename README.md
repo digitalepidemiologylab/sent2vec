@@ -42,7 +42,7 @@ The hash must have at least 2 arguments:
 Response:
 ```
 > rpop i3hzKK6dHG
-"{\"result_queue\":\"i3hzKK6dHG\",\"sentence_vector\":[0.259468257427216,-0.0617985092103481,..., -0.004367686342448,-0.0125288814306259],\"text_tokenized\":\"this is my tokenized input string\"}"
+"{\"result_queue\":\"i3hzKK6dHG\",\"sentence_vector\":[0.259468257427216,-0.0617985092103481,..., -0.004367686342448,-0.0125288814306259],\"text_tokenized\":\"this is my tokenized input string\"\}"
 ```
 Use single_request mode to set a 10s expiry to key:
 ```
