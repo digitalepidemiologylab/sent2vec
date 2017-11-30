@@ -353,9 +353,16 @@ void redisMode(int argc, char** argv) {
     auto response = client.blpop(redis_listen_queue,3600);
     client.sync_commit();
     response.wait();
+    std::string resp_str;
     auto reply = response.get();
-    auto reply_arr = reply.as_array();
-    std::string resp_str = reply_arr[1].as_string();
+    try {
+      auto reply_arr = reply.as_array();
+      resp_str = reply_arr[1].as_string();
+    }
+    catch(...) {
+      cpp_redis::active_logger->debug("New element is not of correct type.", __FILENAME__, __LINE__);
+      continue;
+    }
 
     // parse into JSON
     nlohmann::json text_obj;
