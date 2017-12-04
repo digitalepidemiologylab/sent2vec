@@ -5,7 +5,6 @@ This is an extension of the original sent2vec algorithm to produce word embeddin
 ```
 sudo apt install build-essentials
 https://github.com/salathegroup/sent2vec.git && cd sent2vec
-git submodules
 git submodule update --init --recursive
 mkdir lib/cpp_redis/build && cd lib/cpp_redis/build
 cmake .. -DCMAKE_BUILD_TYPE=Release
